@@ -1,0 +1,29 @@
+{
+  "accuracy":{
+    "Dummy":0.5754166667,
+    "LogisticRegression":0.8275,
+    "DecisionTree":0.8720833333,
+    "RandomForest":0.9116666667,
+    "HistGradientBoosting":0.9241666667,
+    "AdaBoost":0.83625,
+    "GradientBoosting":0.90375
+  },
+  "f1":{
+    "Dummy":0.3404530744,
+    "LogisticRegression":0.7076271186,
+    "DecisionTree":0.7924273158,
+    "RandomForest":0.8519553073,
+    "HistGradientBoosting":0.8773584906,
+    "AdaBoost":0.7234342013,
+    "GradientBoosting":0.8401384083
+  },
+  "roc_auc":{
+    "Dummy":0.5136705855,
+    "LogisticRegression":0.8746905312,
+    "DecisionTree":0.8950488167,
+    "RandomForest":0.9581328399,
+    "HistGradientBoosting":0.9665146831,
+    "AdaBoost":0.899413517,
+    "GradientBoosting":0.9553603169
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "total_figures": 13,
+  "figures_list": [
+    "corr_DS1.png",
+    "corr_DS2.png",
+    "corr_DS3.png",
+    "dbscan_metrics_DS1.png",
+    "dbscan_metrics_DS2.png",
+    "dbscan_metrics_DS3.png",
+    "dbscan_pca_DS1.png",
+    "dbscan_pca_DS2.png",
+    "dbscan_pca_DS3.png",
+    "kmeans_metrics_DS1.png",
+    "kmeans_metrics_DS2.png",
+    "kmeans_metrics_DS3.png",
+    "kmeans_stability_ds1.png"
+  ]
+}
