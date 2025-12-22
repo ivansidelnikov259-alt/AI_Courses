@@ -120,8 +120,9 @@ python -m uvicorn eda_cli.api:app --reload --port 8000
 Запрос:
 ```bash 
 GET /health
-Ожидаемый ответ 200 OK (JSON):
 ```
+Ожидаемый ответ 200 OK (JSON):
+
 ```bash
 json
 {
