@@ -350,6 +350,14 @@ homeworks/
       data/
         example.csv            # учебный CSV для экспериментов
 ```
+## Эндпоинты сервиса
+
+- 1. GET /health
+- 2. GET /docs
+- 3. POST /quality
+- 4. POST /quality-from-csv
+- 5. POST /quality-flags-from-csv
+- 6. POST /dataset-summary-from-csv
 ## Тесты
 Запуск тестов (как и в HW03):
 
