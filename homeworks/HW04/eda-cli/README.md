@@ -43,7 +43,6 @@ CLI остаётся доступным и в HW04.
 
 Краткий обзор
 ```bash
-bash
 uv run eda-cli overview data/example.csv
 ```
 Параметры:
@@ -54,7 +53,6 @@ uv run eda-cli overview data/example.csv
 
 Полный EDA-отчёт
 ```bash
-bash
 uv run eda-cli report data/example.csv --out-dir reports
 ```
 В результате в каталоге reports/ появятся:
@@ -90,7 +88,6 @@ HTTP-сервис реализован в модуле eda_cli.api на FastAPI.
 
 Запуск Uvicorn
 ```bash
-bash
 uv run uvicorn eda_cli.api:app --reload --port 8000
 ``` 
 Пояснения:
@@ -101,30 +98,27 @@ uv run uvicorn eda_cli.api:app --reload --port 8000
 
 - ` --port 8000 ` – порт сервиса (можно поменять при необходимости).
 
-Альтернативные способы запуска:
-```bash
-bash
-```
-# С указанием хоста
+## Альтернативные способы запуска:
+
+### С указанием хоста
 ```bash
 uv run uvicorn eda_cli.api:app --host 0.0.0.0 --port 8000 --reload
 ```
-# Без авто-перезагрузки (для продакшн)
+### Без авто-перезагрузки (для продакшн)
 ```bash
 uv run uvicorn eda_cli.api:app --host 0.0.0.0 --port 8000
 ```
-# Через Python модуль
+### Через Python модуль
 ```bash
 python -m uvicorn eda_cli.api:app --reload --port 8000
 После запуска сервис будет доступен по адресу: http://127.0.0.1:8000
 ```
 Эндпоинты сервиса
-### 1. GET /health – проверка работоспособности сервиса
+## 1. GET /health – проверка работоспособности сервиса
 Простейший health-check.
 
 Запрос:
 ```bash 
-bash
 GET /health
 Ожидаемый ответ 200 OK (JSON):
 ```
@@ -139,11 +133,10 @@ json
 Пример проверки через curl:
 
 ```bash
-bash
 curl http://127.0.0.1:8000/health
 ```
 
-### 2. Swagger UI: GET /docs – интерактивная документация API
+## 2. Swagger UI: GET /docs – интерактивная документация API
 Интерфейс документации и тестирования API:
 ```bash
 text
@@ -151,19 +144,19 @@ http://127.0.0.1:8000/docs
 ```
 Через ` /docs ` можно:
 
-вызывать GET /health;
+- вызывать ` GET /health ` ;
 
-вызывать POST /quality (форма для JSON);
+- вызывать ` POST /quality ` (форма для JSON);
 
-вызывать POST /quality-from-csv (форма для загрузки файла);
+- вызывать ` POST /quality-from-csv ` (форма для загрузки файла);
 
-вызывать POST /quality-flags-from-csv (новый эндпоинт для HW04).
+- вызывать ` POST /quality-flags-from-csv ` (новый эндпоинт для HW04).
 
-### 3. POST /quality – оценка качества по агрегированным признакам
-Эндпоинт принимает агрегированные признаки датасета (размеры, доля пропусков и т.п.) и возвращает эвристическую оценку качества с использованием эвристик из HW03.
+## 3. POST /quality – оценка качества по агрегированным признакам
+### ** Эндпоинт принимает агрегированные признаки датасета (размеры, доля пропусков и т.п.) и возвращает эвристическую оценку качества с использованием эвристик из HW03.
 
 Пример запроса:
-
+```bash
 json
 {
   "n_rows": 10000,
@@ -174,8 +167,10 @@ json
   "has_suspicious_id_duplicates": false,
   "has_many_zero_values": false
 }
-Пример ответа 200 OK:
+```
 
+Пример ответа 200 OK:
+```bash
 json
 {
   "ok_for_model": true,
@@ -192,95 +187,100 @@ json
   },
   "request_id": "uuid-here"
 }
-Пример вызова через curl:
+```
 
-bash
+Пример вызова через curl:
+```bash
 curl -X POST "http://127.0.0.1:8000/quality" \
   -H "Content-Type: application/json" \
   -d '{"n_rows": 10000, "n_cols": 12, "max_missing_share": 0.15}'
-### 4. POST /quality-from-csv – оценка качества по CSV-файлу
+```
+## 4. POST /quality-from-csv – оценка качества по CSV-файлу
 Эндпоинт принимает CSV-файл, внутри:
 
-читает его в pandas.DataFrame;
+- читает его в ` pandas.DataFrame `;
 
-вызывает функции из eda_cli.core:
+- вызывает функции из ` eda_cli.core `:
 
-summarize_dataset()
+-- ` summarize_dataset() `
 
-missing_table()
+-- ` missing_table() `
 
-compute_quality_flags()
+-- `compute_quality_flags() `
 
 возвращает оценку качества датасета.
 
 Запрос:
-
+```bash
 text
 POST /quality-from-csv
 Content-Type: multipart/form-data
 file: <CSV-файл>
-Через Swagger:
+```
+Через ` Swagger `:
 
-в /docs открыть POST /quality-from-csv,
+в ` /docs ` открыть ` POST /quality-from-csv `,
 
-нажать "Try it out",
+нажать ` "Try it out" `,
 
 выбрать файл (например, data/example.csv),
 
-нажать "Execute".
+нажать ` "Execute" `.
 
-Пример вызова через curl:
+Пример вызова через ` curl `:
 
-bash
+```bash
 curl -X POST "http://127.0.0.1:8000/quality-from-csv" \
   -F "file=@data/example.csv"
+```
 Ответ будет содержать:
 
-ok_for_model – результат по эвристикам;
+- ` ok_for_model ` – результат по эвристикам;
 
-quality_score – интегральный скор качества;
+- ` quality_score ` – интегральный скор качества;
 
-flags – булевы флаги из compute_quality_flags (включая флаги из HW03);
+- ` flags ` – булевы флаги из ` compute_quality_flags ` (включая флаги из HW03);
 
-latency_ms – время обработки запроса;
+- ` latency_ms ` – время обработки запроса;
 
-request_id – уникальный идентификатор запроса.
+- ` request_id ` – уникальный идентификатор запроса.
 
-### 5. POST /quality-flags-from-csv – полный набор флагов качества из CSV (НОВЫЙ эндпоинт для HW04)
+## 5. POST /quality-flags-from-csv – полный набор флагов качества из CSV (НОВЫЙ эндпоинт для HW04)
 Новый эндпоинт, специально добавленный для HW04. Возвращает полный набор флагов качества из CSV файла, включая все эвристики, добавленные в HW03.
 
-Использует EDA-ядро: summarize_dataset(), missing_table(), compute_quality_flags()
+Использует EDA-ядро: ` summarize_dataset(), missing_table(), compute_quality_flags() `
 
 Флаги качества из HW03, возвращаемые этим эндпоинтом:
 
-has_constant_columns – есть ли колонки, где все значения одинаковые
+- ` has_constant_columns ` – есть ли колонки, где все значения одинаковые
 
-has_high_cardinality_categoricals – есть ли категориальные признаки с более чем 100 уникальными значениями
+- ` has_high_cardinality_categoricals ` – есть ли категориальные признаки с более чем 100 уникальными значениями
 
-has_suspicious_id_duplicates – есть ли подозрительные дубликаты в колонках с 'id' в названии
+- ` has_suspicious_id_duplicates ` – есть ли подозрительные дубликаты в колонках с 'id' в названии
 
-has_many_zero_values – есть ли числовые колонки, где более 50% значений равны нулю
+- ` has_many_zero_values ` – есть ли числовые колонки, где более 50% значений равны нулю
 
 Параметры (form-data):
 
-file: CSV файл (обязательно)
+- ` file: CSV файл ` (обязательно)
 
-sep: разделитель (по умолчанию ,)
+- ` sep: ` разделитель (по умолчанию ,)
 
-encoding: кодировка (по умолчанию utf-8)
+- ` encoding: ` кодировка (по умолчанию utf-8)
 
-include_summary_stats: включать статистику датасета (по умолчанию true)
+- ` include_summary_stats: ` включать статистику датасета (по умолчанию true)
 
 Пример запроса:
 
-bash
+```bash
 curl -X POST "http://127.0.0.1:8000/quality-flags-from-csv" \
   -F "file=@data/example.csv" \
   -F "sep=," \
   -F "encoding=utf-8" \
   -F "include_summary_stats=true"
+  ```
 Пример ответа 200 OK:
-
+```bash
 json
 {
   "flags": {
@@ -305,13 +305,14 @@ json
   "latency_ms": 15.3,
   "request_id": "550e8400-e29b-41d4-a716-446655440000"
 }
-6. POST /dataset-summary-from-csv – расширенная сводка по датасету (дополнительный эндпоинт)
+```
+## 6. POST /dataset-summary-from-csv – расширенная сводка по датасету (дополнительный эндпоинт)
 Возвращает детальную информацию о датасете, используя все функции EDA-ядра.
 
 Использует EDA-ядро: summarize_dataset(), missing_table(), top_categories(), correlation_matrix(), compute_quality_flags()
 
 Структура проекта
-text
+```text
 homeworks/
   HW04/
     eda-cli/
@@ -328,40 +329,42 @@ homeworks/
         test_core.py           # тесты ядра
       data/
         example.csv            # учебный CSV для экспериментов
-Тесты
+```
+## Тесты
 Запуск тестов (как и в HW03):
 
-bash
+```bash
 uv run pytest -q
+```
 Новые тесты (добавлены в HW03):
 
-test_quality_flags_has_constant_columns
+- ` test_quality_flags_has_constant_columns `
 
-test_quality_flags_has_high_cardinality_categoricals
+- ` test_quality_flags_has_high_cardinality_categoricals `
 
-test_quality_flags_has_suspicious_id_duplicates
+- ` test_quality_flags_has_suspicious_id_duplicates `
 
-test_quality_flags_has_many_zero_values
+- ` test_quality_flags_has_many_zero_values `
 
 Рекомендуется перед любыми изменениями в логике качества данных и API:
 
-Запустить тесты pytest;
+- Запустить тесты pytest;
 
-Проверить работу CLI (uv run eda-cli ...);
+- Проверить работу CLI (uv run eda-cli ...);
 
-Проверить работу HTTP-сервиса (uv run uvicorn eda_cli.api:app ..., затем /health и /quality, /quality-from-csv, /quality-flags-from-csv через /docs или HTTP-клиент).
+- Проверить работу HTTP-сервиса (uv run uvicorn eda_cli.api:app ..., затем /health и /quality, /quality-from-csv, /quality-flags-from-csv через /docs или HTTP-клиент).
 
 Интеграция с EDA-ядром
 HTTP сервис использует те же функции EDA-ядра, что и CLI-приложение:
 
-summarize_dataset() – для получения статистики по датасету
+- ` summarize_dataset() ` – для получения статистики по датасету
 
-missing_table() – для анализа пропусков
+- ` missing_table() ` – для анализа пропусков
 
-compute_quality_flags() – для вычисления флагов качества (включая новые флаги из HW03)
+- ` compute_quality_flags() ` – для вычисления флагов качества (включая новые флаги из HW03)
 
-top_categories() – для анализа категориальных признаков
+- ` top_categories() ` – для анализа категориальных признаков
 
-correlation_matrix() – для анализа корреляций
+- ` correlation_matrix() ` – для анализа корреляций
 
 Все эндпоинты, работающие с CSV-файлами, явно используют функции EDA-ядра для анализа данных.
