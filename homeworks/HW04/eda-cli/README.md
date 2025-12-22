@@ -246,10 +246,10 @@ curl -X POST "http://127.0.0.1:8000/quality-from-csv" \
 
 - ` request_id ` – уникальный идентификатор запроса.
 
-## 5. POST /quality-flags-from-csv – полный набор флагов качества из CSV (НОВЫЙ эндпоинт для HW04)
+## 5. POST /quality-flags-from-csv – полный набор флагов качества из CSV (новый эндпоинт для HW04)
 Новый эндпоинт, специально добавленный для HW04. Возвращает полный набор флагов качества из CSV файла, включая все эвристики, добавленные в HW03.
 
-Использует EDA-ядро: ` summarize_dataset(), missing_table(), compute_quality_flags() `
+Использует EDA-ядро: ` summarize_dataset(), missing_table(), compute_quality_flags(). `
 
 Флаги качества из HW03, возвращаемые этим эндпоинтом:
 
@@ -271,7 +271,14 @@ curl -X POST "http://127.0.0.1:8000/quality-from-csv" \
 
 - ` include_summary_stats: ` включать статистику датасета (по умолчанию true)
 
-Пример запроса:
+Запрос:
+```bash
+http
+POST /quality-flags-from-csv
+Content-Type: multipart/form-data
+```
+
+Пример вызова через curl:
 
 ```bash
 curl -X POST "http://127.0.0.1:8000/quality-flags-from-csv" \
@@ -279,8 +286,8 @@ curl -X POST "http://127.0.0.1:8000/quality-flags-from-csv" \
   -F "sep=," \
   -F "encoding=utf-8" \
   -F "include_summary_stats=true"
-  ```
-Пример ответа 200 OK:
+```
+Пример ответа 200 OK (JSON):
 ```bash
 json
 {
@@ -307,6 +314,18 @@ json
   "request_id": "550e8400-e29b-41d4-a716-446655440000"
 }
 ```
+
+Через Swagger UI:
+
+- в ` /docs ` открыть ` POST /quality-flags-from-csv ` ,
+
+- нажать ` Try it out ` ,
+
+- выбрать файл (например, ` data/example.csv `),
+
+- при необходимости указать дополнительные параметры ` (sep, encoding, include_summary_stats) ` ,
+
+- нажать ` Execute. `
 ## 6. POST /dataset-summary-from-csv – расширенная сводка по датасету (дополнительный эндпоинт)
 Возвращает детальную информацию о датасете, используя все функции EDA-ядра.
 
