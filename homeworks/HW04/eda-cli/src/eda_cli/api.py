@@ -1,419 +1,313 @@
+# Файл: src/eda_cli/api.py
 from __future__ import annotations
 
-import io
 import time
 import uuid
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Dict, Any, Optional
 
 import pandas as pd
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
 
-# Импортируем функции из нашего ядра
+# === ИМПОРТЫ ИЗ НАШЕГО ПРОЕКТА HW03 ===
 from .core import (
-    DatasetSummary,
-    compute_quality_flags,
-    missing_table,
     summarize_dataset,
-    top_categories,
-    correlation_matrix,
-    flatten_summary_for_print,
+    missing_table,
+    compute_quality_flags,
+    DatasetSummary,
 )
+# === КОНЕЦ ИМПОРТОВ ===
 
 app = FastAPI(
-    title="EDA Quality API",
-    description="HTTP-сервис для оценки качества датасетов на базе eda-cli",
+    title="EDA Quality Service",
+    description="HTTP-сервис для оценки качества датасетов поверх eda-cli",
     version="0.1.0",
 )
 
-# ========== МОДЕЛИ ДЛЯ ЗАПРОСОВ/ОТВЕТОВ ==========
-
-class QualityRequest(BaseModel):
-    """Модель запроса для эндпоинта /quality"""
-    n_rows: int
-    n_cols: int
-    max_missing_share: float
-    has_constant_columns: bool = False
-    has_high_cardinality_categoricals: bool = False
-    has_suspicious_id_duplicates: bool = False
-    has_many_zero_values: bool = False
+# === БАЗОВЫЙ ЭНДПОИНТ ИЗ СЕМИНАРА ===
+@app.get("/health")
+async def health_check() -> Dict[str, Any]:
+    """Проверка работоспособности сервиса."""
+    return {
+        "status": "healthy",
+        "service": "eda-quality-service",
+        "version": "0.1.0",
+    }
 
 
-class QualityResponse(BaseModel):
-    """Модель ответа для эндпоинтов качества"""
-    ok_for_model: bool
-    quality_score: float
-    latency_ms: float
-    flags: Dict[str, Any]
-    request_id: str
-
-
-class QualityFlagsResponse(BaseModel):
-    """Модель ответа для эндпоинта /quality-flags-from-csv"""
-    flags: Dict[str, Any]
-    summary_stats: Dict[str, Any]
-    latency_ms: float
-    request_id: str
-
-
-class HealthResponse(BaseModel):
-    """Модель ответа для эндпоинта /health"""
-    status: str
-    version: str
-    timestamp: float
-
-
-# ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ==========
-
-def _read_csv_from_upload(file: UploadFile) -> pd.DataFrame:
-    """Читает CSV из загруженного файла"""
-    try:
-        contents = file.file.read()
-        text = contents.decode("utf-8")
-        return pd.read_csv(io.StringIO(text))
-    except Exception as e:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Не удалось прочитать CSV: {str(e)}"
-        )
-    finally:
-        file.file.close()
-
-
-def _compute_quality_for_df(df: pd.DataFrame) -> Dict[str, Any]:
-    """Вычисляет качество для DataFrame"""
+@app.post("/quality")
+async def quality_check(data: Dict[str, Any]) -> Dict[str, Any]:
+    """Оценка качества датасета на основе переданных метрик."""
     start_time = time.time()
     
-    summary = summarize_dataset(df)
-    missing_df = missing_table(df)
-    flags = compute_quality_flags(summary, missing_df, df)
+    # Извлекаем параметры (пример из семинара)
+    n_rows = data.get("n_rows", 0)
+    max_missing_share = data.get("max_missing_share", 0.0)
+    has_constant_columns = data.get("has_constant_columns", False)
+    
+    # Простейшая логика предсказания (можно доработать)
+    ok_for_model = (
+        n_rows > 100 and 
+        max_missing_share < 0.3 and 
+        not has_constant_columns
+    )
+    
+    # Простой расчет качества (пример)
+    quality_score = 1.0
+    if max_missing_share > 0.5:
+        quality_score -= 0.3
+    if has_constant_columns:
+        quality_score -= 0.2
+    if n_rows < 100:
+        quality_score -= 0.1
+    quality_score = max(0.0, min(1.0, quality_score))
     
     latency_ms = (time.time() - start_time) * 1000
     
     return {
-        "flags": flags,
-        "summary": summary,
-        "missing_df": missing_df,
-        "latency_ms": latency_ms,
+        "ok_for_model": ok_for_model,
+        "quality_score": round(quality_score, 3),
+        "latency_ms": round(latency_ms, 2),
+        "flags": {
+            "n_rows_sufficient": n_rows >= 100,
+            "missing_acceptable": max_missing_share < 0.3,
+            "no_constant_columns": not has_constant_columns,
+        }
     }
 
 
-# ========== СУЩЕСТВУЮЩИЕ ЭНДПОИНТЫ (из семинара) ==========
-
-@app.get("/health", response_model=HealthResponse)
-async def health() -> HealthResponse:
-    """Проверка здоровья сервиса"""
-    return HealthResponse(
-        status="ok",
-        version="0.1.0",
-        timestamp=time.time(),
-    )
-
-
-@app.post("/quality", response_model=QualityResponse)
-async def quality(request: QualityRequest) -> QualityResponse:
-    """
-    Оценка качества на основе параметров
-    
-    Использует эвристики из HW03 для предсказания,
-    подходит ли датасет для обучения модели.
-    """
-    start_time = time.time()
-    request_id = str(uuid.uuid4())
-    
-    # В реальном проекте здесь может быть ML-модель
-    # Сейчас используем простые правила на основе эвристик HW03
-    
-    score = 1.0
-    
-    # Эвристики из HW03
-    if request.n_rows < 100:
-        score -= 0.2
-    if request.n_cols > 100:
-        score -= 0.1
-    if request.max_missing_share > 0.5:
-        score -= 0.3
-    if request.has_constant_columns:
-        score -= 0.1
-    if request.has_high_cardinality_categoricals:
-        score -= 0.1
-    if request.has_suspicious_id_duplicates:
-        score -= 0.15
-    if request.has_many_zero_values:
-        score -= 0.1
-    
-    score = max(0.0, min(1.0, score))
-    
-    ok_for_model = score > 0.6
-    
-    flags = {
-        "too_few_rows": request.n_rows < 100,
-        "too_many_columns": request.n_cols > 100,
-        "too_many_missing": request.max_missing_share > 0.5,
-        "has_constant_columns": request.has_constant_columns,
-        "has_high_cardinality_categoricals": request.has_high_cardinality_categoricals,
-        "has_suspicious_id_duplicates": request.has_suspicious_id_duplicates,
-        "has_many_zero_values": request.has_many_zero_values,
-        "max_missing_share": request.max_missing_share,
-    }
-    
-    latency_ms = (time.time() - start_time) * 1000
-    
-    return QualityResponse(
-        ok_for_model=ok_for_model,
-        quality_score=score,
-        latency_ms=latency_ms,
-        flags=flags,
-        request_id=request_id,
-    )
-
-
-@app.post("/quality-from-csv", response_model=QualityResponse)
+@app.post("/quality-from-csv")
 async def quality_from_csv(
-    file: UploadFile = File(..., description="CSV файл для анализа"),
-    sep: str = Form(","),
-    encoding: str = Form("utf-8"),
-) -> QualityResponse:
-    """
-    Оценка качества датасета из CSV-файла
-    
-    Использует функции из core.py для вычисления
-    эвристик качества, добавленных в HW03.
-    """
+    file: UploadFile = File(...),
+    min_rows: int = 50,
+    max_missing_threshold: float = 0.5,
+) -> Dict[str, Any]:
+    """Оценка качества датасета из CSV-файла."""
     start_time = time.time()
-    request_id = str(uuid.uuid4())
     
-    try:
-        # Читаем CSV
-        df = _read_csv_from_upload(file)
-        
-        if df.empty:
-            raise HTTPException(
-                status_code=400,
-                detail="CSV файл пустой"
-            )
-        
-        # Вычисляем качество
-        result = _compute_quality_for_df(df)
-        flags = result["flags"]
-        summary = result["summary"]
-        
-        # Определяем, подходит ли для модели
-        ok_for_model = flags["quality_score"] > 0.6
-        
-        # Формируем полный набор флагов для ответа
-        full_flags = {
-            "too_few_rows": flags["too_few_rows"],
-            "too_many_columns": flags["too_many_columns"],
-            "too_many_missing": flags["too_many_missing"],
-            "has_constant_columns": flags["has_constant_columns"],
-            "has_high_cardinality_categoricals": flags["has_high_cardinality_categoricals"],
-            "has_suspicious_id_duplicates": flags["has_suspicious_id_duplicates"],
-            "has_many_zero_values": flags["has_many_zero_values"],
-            "max_missing_share": flags["max_missing_share"],
-            "quality_score": flags["quality_score"],
-        }
-        
-        return QualityResponse(
-            ok_for_model=ok_for_model,
-            quality_score=flags["quality_score"],
-            latency_ms=result["latency_ms"],
-            flags=full_flags,
-            request_id=request_id,
-        )
-        
-    except HTTPException:
-        raise
-    except Exception as e:
+    # Проверка расширения файла
+    if not file.filename or not file.filename.lower().endswith('.csv'):
         raise HTTPException(
-            status_code=500,
-            detail=f"Внутренняя ошибка сервера: {str(e)}"
+            status_code=400,
+            detail="Файл должен быть в формате CSV"
         )
-
-
-# ========== НОВЫЙ ЭНДПОИНТ ДЛЯ HW04 ==========
-
-@app.post("/quality-flags-from-csv", response_model=QualityFlagsResponse)
-async def quality_flags_from_csv(
-    file: UploadFile = File(..., description="CSV файл для анализа"),
-    sep: str = Form(","),
-    encoding: str = Form("utf-8"),
-    include_summary_stats: bool = Form(True, description="Включать статистику датасета"),
-) -> QualityFlagsResponse:
-    """
-    Возвращает полный набор флагов качества из CSV файла
-    
-    Этот эндпоинт специально создан для HW04 и использует
-    все эвристики качества, добавленные в HW03.
-    
-    В отличие от /quality-from-csv, возвращает ТОЛЬКО флаги
-    без решения о пригодности для модели.
-    """
-    start_time = time.time()
-    request_id = str(uuid.uuid4())
     
     try:
-        # Читаем CSV
-        df = _read_csv_from_upload(file)
+        # Чтение CSV
+        contents = await file.read()
+        df = pd.read_csv(pd.io.common.BytesIO(contents))
         
+        # Проверка на пустой датасет
         if df.empty:
             raise HTTPException(
                 status_code=400,
-                detail="CSV файл пустой"
+                detail="CSV файл пуст или не содержит данных"
             )
         
-        # Вычисляем качество
-        result = _compute_quality_for_df(df)
-        flags = result["flags"]
-        summary = result["summary"]
-        missing_df = result["missing_df"]
+        # Используем логику из нашего проекта HW03
+        summary: DatasetSummary = summarize_dataset(df)
+        missing_df = missing_table(df)
+        flags = compute_quality_flags(summary, missing_df)
         
-        # Формируем полный набор флагов для ответа
-        full_flags = {
-            # Основные флаги из исходной реализации
-            "too_few_rows": flags["too_few_rows"],
-            "too_many_columns": flags["too_many_columns"],
-            "too_many_missing": flags["too_many_missing"],
-            
-            # ========== НОВЫЕ ФЛАГИ ИЗ HW03 ==========
-            "has_constant_columns": flags["has_constant_columns"],
-            "has_high_cardinality_categoricals": flags["has_high_cardinality_categoricals"],
-            "has_suspicious_id_duplicates": flags["has_suspicious_id_duplicates"],
-            "has_many_zero_values": flags["has_many_zero_values"],
-            
-            # Дополнительные метрики
-            "max_missing_share": flags["max_missing_share"],
-            "quality_score": flags["quality_score"],
-        }
-        
-        # Статистика датасета
-        summary_stats = {}
-        if include_summary_stats:
-            summary_stats = {
-                "n_rows": summary.n_rows,
-                "n_cols": summary.n_cols,
-                "numeric_columns": sum(1 for c in summary.columns if c.is_numeric),
-                "categorical_columns": sum(1 for c in summary.columns if not c.is_numeric),
-                "total_missing": missing_df["missing_count"].sum() if not missing_df.empty else 0,
-                "columns_with_missing": (missing_df["missing_count"] > 0).sum() if not missing_df.empty else 0,
-            }
+        # Определяем, подходит ли датасет для модели
+        ok_for_model = (
+            summary.n_rows >= min_rows and
+            flags.get("max_missing_share", 1.0) < max_missing_threshold and
+            not flags.get("too_many_missing", True) and
+            not flags.get("has_constant_columns", False)  # Используем нашу новую эвристику
+        )
         
         latency_ms = (time.time() - start_time) * 1000
         
-        return QualityFlagsResponse(
-            flags=full_flags,
-            summary_stats=summary_stats,
-            latency_ms=latency_ms,
-            request_id=request_id,
-        )
+        return {
+            "ok_for_model": ok_for_model,
+            "quality_score": round(flags.get("quality_score", 0.0), 3),
+            "latency_ms": round(latency_ms, 2),
+            "dataset_info": {
+                "n_rows": summary.n_rows,
+                "n_cols": summary.n_cols,
+            },
+            "flags": flags,  # Включаем ВСЕ флаги из HW03
+        }
         
-    except HTTPException:
-        raise
+    except pd.errors.EmptyDataError:
+        raise HTTPException(
+            status_code=400,
+            detail="CSV файл пуст или не содержит данных"
+        )
     except Exception as e:
         raise HTTPException(
             status_code=500,
-            detail=f"Внутренняя ошибка сервера: {str(e)}"
+            detail=f"Ошибка обработки файла: {str(e)}"
         )
+# === КОНЕЦ БАЗОВЫХ ЭНДПОИНТОВ ===
 
 
-# ========== ДОПОЛНИТЕЛЬНЫЙ ЭНДПОИНТ (опционально) ==========
-
-@app.post("/dataset-summary-from-csv")
-async def dataset_summary_from_csv(
-    file: UploadFile = File(..., description="CSV файл для анализа"),
-    sep: str = Form(","),
-    encoding: str = Form("utf-8"),
-    top_k_categories: int = Form(5, description="Количество топ-категорий"),
-):
+# === НОВЫЙ ЭНДПОИНТ ДЛЯ HW04 (ОБЯЗАТЕЛЬНЫЙ) ===
+@app.post("/quality-flags-from-csv")
+async def quality_flags_from_csv(
+    file: UploadFile = File(...),
+    high_cardinality_threshold: int = 50,
+    zero_values_threshold: float = 0.3,
+) -> Dict[str, Any]:
     """
-    Расширенная сводка по датасету из CSV
-    
-    Возвращает детальную информацию:
-    - общую статистику
-    - пропуски по колонкам
-    - топ-категории
-    - корреляционную матрицу
+    Возвращает полный набор флагов качества из CSV-файла.
+    Включает все эвристики, добавленные в HW03.
     """
     start_time = time.time()
-    request_id = str(uuid.uuid4())
+    
+    # Проверка файла
+    if not file.filename or not file.filename.lower().endswith('.csv'):
+        raise HTTPException(
+            status_code=400,
+            detail="Файл должен быть в формате CSV"
+        )
     
     try:
-        # Читаем CSV
-        df = _read_csv_from_upload(file)
+        # Чтение CSV
+        contents = await file.read()
+        df = pd.read_csv(pd.io.common.BytesIO(contents))
         
         if df.empty:
             raise HTTPException(
                 status_code=400,
-                detail="CSV файл пустой"
+                detail="CSV файл пуст"
             )
         
-        # Вычисляем различные метрики
+        # Используем логику из HW03
+        summary: DatasetSummary = summarize_dataset(df)
+        missing_df = missing_table(df)
+        
+        # === ВЫЗЫВАЕМ НАШУ ФУНКЦИЮ ИЗ HW03 ===
+        flags = compute_quality_flags(summary, missing_df)
+        # === КОНЕЦ ВЫЗОВА ===
+        
+        # Дополнительная проверка на дубликаты ID (если есть колонка 'user_id' или 'id')
+        has_id_duplicates = False
+        if 'user_id' in df.columns:
+            has_id_duplicates = df['user_id'].duplicated().any()
+        elif 'id' in df.columns:
+            has_id_duplicates = df['id'].duplicated().any()
+        
+        # Добавляем эту проверку в флаги
+        flags["has_suspicious_id_duplicates"] = has_id_duplicates
+        
+        # Проверка на много нулей в числовых колонках
+        has_many_zeros = False
+        numeric_cols = df.select_dtypes(include='number').columns
+        for col in numeric_cols:
+            zero_share = (df[col] == 0).sum() / len(df)
+            if zero_share > zero_values_threshold:
+                has_many_zeros = True
+                break
+        
+        flags["has_many_zero_values"] = has_many_zeros
+        flags["zero_values_threshold"] = zero_values_threshold
+        flags["high_cardinality_threshold"] = high_cardinality_threshold
+        
+        latency_ms = (time.time() - start_time) * 1000
+        
+        return {
+            "flags": flags,  # Все флаги из compute_quality_flags + дополнительные
+            "additional_flags": {
+                "has_suspicious_id_duplicates": has_id_duplicates,
+                "has_many_zero_values": has_many_zeros,
+                "zero_values_threshold": zero_values_threshold,
+                "high_cardinality_threshold": high_cardinality_threshold,
+            },
+            "latency_ms": round(latency_ms, 2),
+            "dataset_info": {
+                "n_rows": summary.n_rows,
+                "n_cols": summary.n_cols,
+                "file_name": file.filename,
+            }
+        }
+        
+    except pd.errors.EmptyDataError:
+        raise HTTPException(status_code=400, detail="CSV файл пуст")
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Ошибка обработки файла: {str(e)}"
+        )
+# === КОНЕЦ НОВОГО ЭНДПОИНТА ===
+
+
+# === ДОПОЛНИТЕЛЬНЫЙ ЭНДПОИНТ (ОПЦИОНАЛЬНО) ===
+@app.post("/report-from-csv")
+async def report_from_csv(
+    file: UploadFile = File(...),
+    max_hist_columns: int = 6,
+    top_k_categories: int = 5,
+    out_dir: str = "api_reports",
+) -> Dict[str, Any]:
+    """
+    Генерирует полный EDA-отчёт из CSV-файла.
+    Использует параметры из HW03.
+    """
+    try:
+        # Чтение CSV
+        contents = await file.read()
+        df = pd.read_csv(pd.io.common.BytesIO(contents))
+        
+        if df.empty:
+            raise HTTPException(status_code=400, detail="CSV файл пуст")
+        
+        # Создаем директорию для отчёта
+        report_dir = Path(out_dir) / f"report_{uuid.uuid4().hex[:8]}"
+        report_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Сохраняем CSV для обработки CLI
+        temp_csv = report_dir / "temp_data.csv"
+        df.to_csv(temp_csv, index=False)
+        
+        # Здесь можно было бы вызвать CLI команду,
+        # но для простоты делаем базовую обработку
+        
         summary = summarize_dataset(df)
         missing_df = missing_table(df)
-        flags = compute_quality_flags(summary, missing_df, df)
-        top_cats = top_categories(df, top_k=top_k_categories)
-        corr_matrix = correlation_matrix(df)
+        flags = compute_quality_flags(summary, missing_df)
         
-        # Форматируем результаты
-        summary_list = []
-        for col in summary.columns:
-            summary_list.append({
-                "name": col.name,
-                "dtype": col.dtype,
-                "non_null": col.non_null,
-                "missing": col.missing,
-                "missing_share": col.missing_share,
-                "unique": col.unique,
-                "is_numeric": col.is_numeric,
-            })
-        
-        # Форматируем пропуски
-        missing_list = []
-        if not missing_df.empty:
-            for idx, row in missing_df.iterrows():
-                missing_list.append({
-                    "column": idx,
-                    "missing_count": int(row["missing_count"]),
-                    "missing_share": float(row["missing_share"]),
-                })
-        
-        # Форматируем топ-категории
-        top_cats_formatted = {}
-        for col_name, table in top_cats.items():
-            top_cats_formatted[col_name] = table.to_dict(orient="records")
-        
-        # Форматируем корреляционную матрицу
-        corr_formatted = {}
-        if not corr_matrix.empty:
-            corr_formatted = {
-                "columns": corr_matrix.columns.tolist(),
-                "matrix": corr_matrix.values.tolist(),
-            }
-        
-        latency_ms = (time.time() - start_time) * 1000
-        
-        return JSONResponse({
-            "request_id": request_id,
-            "latency_ms": latency_ms,
-            "summary": {
+        # Сохраняем базовую информацию
+        import json
+        report_info = {
+            "dataset_info": {
                 "n_rows": summary.n_rows,
                 "n_cols": summary.n_cols,
-                "columns": summary_list,
+                "file_name": file.filename,
             },
-            "missing": missing_list,
-            "top_categories": top_cats_formatted,
-            "correlation": corr_formatted,
             "quality_flags": flags,
-        })
+            "report_settings": {
+                "max_hist_columns": max_hist_columns,
+                "top_k_categories": top_k_categories,
+                "out_dir": str(report_dir),
+            },
+            "report_files": [
+                str(report_dir / "dataset_info.json"),
+                str(report_dir / "temp_data.csv"),
+            ]
+        }
         
-    except HTTPException:
-        raise
+        # Сохраняем JSON с информацией
+        with open(report_dir / "dataset_info.json", "w") as f:
+            json.dump(report_info, f, indent=2, default=str)
+        
+        # Удаляем временный CSV
+        temp_csv.unlink()
+        
+        return {
+            "status": "report_generated",
+            "report_dir": str(report_dir),
+            "message": f"Отчёт сгенерирован в {report_dir}",
+            "dataset_info": report_info["dataset_info"],
+            "quality_score": flags.get("quality_score", 0.0),
+        }
+        
     except Exception as e:
         raise HTTPException(
             status_code=500,
-            detail=f"Внутренняя ошибка сервера: {str(e)}"
+            detail=f"Ошибка генерации отчёта: {str(e)}"
         )
 
 
