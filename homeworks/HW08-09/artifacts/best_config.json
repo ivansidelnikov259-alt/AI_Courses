@@ -1,0 +1,24 @@
+{
+  "model_config": {
+    "input_size": 784,
+    "hidden_sizes": [
+      256,
+      128
+    ],
+    "num_classes": 47,
+    "activation": "relu",
+    "use_batchnorm": true,
+    "dropout_rate": 0.0
+  },
+  "train_config": {
+    "optimizer": "Adam",
+    "lr": 0.001,
+    "num_epochs": 30,
+    "weight_decay": 0,
+    "early_stopping_patience": 5
+  },
+  "seed": 42,
+  "dataset": "EMNIST_Balanced",
+  "best_val_accuracy": 0.8472517730496454,
+  "best_epoch": 9
+}
