@@ -1,0 +1,16 @@
+{
+    "dataset": "STL10",
+    "architecture": "ResNet18",
+    "experiment": "C4",
+    "seed": 42,
+    "batch_size": 32,
+    "optimizer": "Adam",
+    "learning_rate": 0.0001,
+    "epochs": 5,
+    "best_val_accuracy": 93.175,
+    "test_accuracy": 93.175,
+    "transforms": {
+        "train": "resnet_transform with augmentations",
+        "val": "resnet_transform"
+    }
+}
